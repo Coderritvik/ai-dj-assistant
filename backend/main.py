@@ -3,11 +3,10 @@ from fastapi.middleware.cors import CORSMiddleware
 import shutil
 import os
 from analyze import analyze_track
+from database import init_db, save_track, get_all_tracks
 
 app = FastAPI()
 
-# This allows your future React frontend (running on a different port)
-# to actually talk to this backend. Without this, browsers block the request.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -15,9 +14,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+init_db()
+
 @app.post("/analyze")
 async def analyze(file: UploadFile = File(...)):
-    # Save the uploaded file temporarily so librosa/essentia can read it from disk
     temp_path = f"temp_{file.filename}"
     with open(temp_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
@@ -25,7 +25,21 @@ async def analyze(file: UploadFile = File(...)):
     try:
         result = analyze_track(temp_path)
     finally:
-        # Clean up the temp file whether analysis succeeded or failed
         os.remove(temp_path)
 
+    track_id = save_track(
+        filename=file.filename,
+        bpm=result["bpm"],
+        key=result["key"],
+        key_confidence=result["key_confidence"],
+        energy=result["energy"],
+        danceability=result["danceability"]
+    )
+
+    result["id"] = track_id
     return result
+
+
+@app.get("/tracks")
+async def list_tracks():
+    return get_all_tracks()

@@ -12,3 +12,10 @@ __pycache__/
 
 # Environment secrets
 .env
+
+# Database
+backend/tracks.db
+
+# Frontend build artifacts
+frontend/node_modules/
+frontend/dist/
