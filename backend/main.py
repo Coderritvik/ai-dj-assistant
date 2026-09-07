@@ -4,6 +4,7 @@ import shutil
 import os
 from analyze import analyze_track
 from database import init_db, save_track, get_all_tracks
+from camelot import get_camelot, is_harmonically_compatible
 
 app = FastAPI()
 
@@ -43,3 +44,52 @@ async def analyze(file: UploadFile = File(...)):
 @app.get("/tracks")
 async def list_tracks():
     return get_all_tracks()
+
+
+@app.get("/recommendations/{track_id}")
+async def get_recommendations(track_id: int):
+    all_tracks = get_all_tracks()
+
+    target = None
+    for track in all_tracks:
+        if track["id"] == track_id:
+            target = track
+            break
+
+    if target is None:
+        return {"error": "Track not found"}
+
+    target_key_parts = target["key"].split(" ", 1)
+    target_camelot = get_camelot(target_key_parts[0], target_key_parts[1])
+
+    scored_matches = []
+    for track in all_tracks:
+        if track["id"] == track_id:
+            continue
+
+        key_parts = track["key"].split(" ", 1)
+        track_camelot = get_camelot(key_parts[0], key_parts[1])
+
+        bpm_diff = abs(track["bpm"] - target["bpm"])
+        harmonic_match = is_harmonically_compatible(target_camelot, track_camelot)
+
+        score = 0
+        if harmonic_match:
+            score += 100
+        score -= bpm_diff
+
+        scored_matches.append({
+            **track,
+            "camelot": track_camelot,
+            "harmonic_match": harmonic_match,
+            "bpm_diff": round(bpm_diff, 1),
+            "score": round(score, 1)
+        })
+
+    scored_matches.sort(key=lambda x: x["score"], reverse=True)
+
+    return {
+        "target_track": target["filename"],
+        "target_camelot": target_camelot,
+        "recommendations": scored_matches
+    }
