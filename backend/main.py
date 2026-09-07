@@ -1,5 +1,6 @@
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
+from typing import List
 import shutil
 import os
 from analyze import analyze_track
@@ -16,6 +17,10 @@ app.add_middleware(
 )
 
 init_db()
+
+LIBRARY_DIR = "library"
+os.makedirs(LIBRARY_DIR, exist_ok=True)
+
 
 @app.post("/analyze")
 async def analyze(file: UploadFile = File(...)):
@@ -39,6 +44,37 @@ async def analyze(file: UploadFile = File(...)):
 
     result["id"] = track_id
     return result
+
+
+@app.post("/analyze-folder")
+async def analyze_folder(files: List[UploadFile] = File(...)):
+    results = []
+
+    for file in files:
+        permanent_path = os.path.join(LIBRARY_DIR, file.filename)
+        with open(permanent_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+
+        try:
+            result = analyze_track(permanent_path)
+        except Exception as e:
+            results.append({"filename": file.filename, "error": str(e)})
+            continue
+
+        track_id = save_track(
+            filename=file.filename,
+            bpm=result["bpm"],
+            key=result["key"],
+            key_confidence=result["key_confidence"],
+            energy=result["energy"],
+            danceability=result["danceability"]
+        )
+
+        result["id"] = track_id
+        result["filename"] = file.filename
+        results.append(result)
+
+    return {"analyzed": results}
 
 
 @app.get("/tracks")
