@@ -6,6 +6,7 @@ import os
 from analyze import analyze_track
 from database import init_db, save_track, get_all_tracks
 from camelot import get_camelot, is_harmonically_compatible
+from set_builder import build_set
 
 app = FastAPI()
 
@@ -128,4 +129,22 @@ async def get_recommendations(track_id: int):
         "target_track": target["filename"],
         "target_camelot": target_camelot,
         "recommendations": scored_matches
+    }
+
+@app.get("/generate-set")
+async def generate_set(context: str = "peak", count: int = None):
+    all_tracks = get_all_tracks()
+
+    if context not in ["opening", "peak", "closing"]:
+        return {"error": "context must be 'opening', 'peak', or 'closing'"}
+
+    ordered = build_set(all_tracks, context)
+
+    if count is not None:
+        ordered = ordered[:count]
+
+    return {
+        "context": context,
+        "track_count": len(ordered),
+        "set": ordered
     }

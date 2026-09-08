@@ -34,9 +34,7 @@ def deduplicate_tracks(tracks):
 def filter_by_context(tracks, context):
     """Only consider tracks in a tempo range that makes sense for this context."""
     if context == "peak":
-        # Peak sets stay in a tight, danceable tempo band
         return [t for t in tracks if 118 <= t["bpm"] <= 145]
-    # Opening and closing can use a wider range, since they're meant to ease in/out
     return tracks
 
 
@@ -56,40 +54,45 @@ def build_set(tracks, context):
 
     # Pick the starting track based on context
     if context == "opening":
-        # Start with the lowest energy track
         start = min(remaining, key=lambda t: t["energy"])
     elif context == "closing":
-        # Start with a high energy track, since we're winding down FROM peak energy
         start = max(remaining, key=lambda t: t["energy"])
     else:  # peak
-        # Start with the highest energy, most danceable track
         start = max(remaining, key=lambda t: (t["energy"], t["danceability"]))
 
     ordered_set = [start]
     remaining.remove(start)
 
     current = start
+    total_tracks = len(remaining)
+    step = 0
 
     while remaining:
-        # Score every remaining track as a potential next track
+        step += 1
+        progress = step / total_tracks  # 0.0 at start, approaches 1.0 near the end
+
+        # Build a filtered pool based on context and how far into the set we are
+        if context == "opening":
+            # Energy floor rises over time — later tracks must be at least this energetic
+            energy_floor = current["energy"] * (0.85 + 0.3 * progress)
+            pool = [t for t in remaining if t["energy"] >= energy_floor]
+        elif context == "closing":
+            # Energy ceiling falls over time — later tracks must be at or below this
+            energy_ceiling = current["energy"] * (1.15 - 0.3 * progress)
+            pool = [t for t in remaining if t["energy"] <= energy_ceiling]
+        else:
+            pool = remaining
+
+        # If the strict filter leaves nothing, fall back to the full remaining list
+        # rather than crash — a slightly-off transition beats no track at all
+        if len(pool) == 0:
+            pool = remaining
+
         scored = []
-        for candidate in remaining:
+        for candidate in pool:
             transition_score = score_transition(current, candidate)
-
-            # Nudge the score based on the set's context and direction
-            if context == "opening":
-                # Prefer tracks with slightly higher energy than current (building up)
-                if candidate["energy"] >= current["energy"]:
-                    transition_score += 20
-            elif context == "closing":
-                # Prefer tracks with slightly lower energy than current (winding down)
-                if candidate["energy"] <= current["energy"]:
-                    transition_score += 20
-            # "peak" has no energy-direction bonus, just wants strong transitions throughout
-
             scored.append((transition_score, candidate))
 
-        # Pick the best-scoring next track
         scored.sort(key=lambda x: x[0], reverse=True)
         next_track = scored[0][1]
 
