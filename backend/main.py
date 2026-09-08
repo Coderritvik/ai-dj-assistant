@@ -7,6 +7,8 @@ from analyze import analyze_track
 from database import init_db, save_track, get_all_tracks
 from camelot import get_camelot, is_harmonically_compatible
 from set_builder import build_set
+from fastapi.responses import FileResponse
+from rekordbox_export import generate_rekordbox_xml, save_xml
 
 app = FastAPI()
 
@@ -43,8 +45,9 @@ async def analyze(file: UploadFile = File(...)):
         danceability=result["danceability"]
     )
 
-    result["id"] = track_id
-    return result
+    all_tracks = get_all_tracks()
+    saved_track = next(t for t in all_tracks if t["id"] == track_id)
+    return saved_track
 
 
 @app.post("/analyze-folder")
@@ -202,3 +205,30 @@ async def find_bridge(from_track_id: int, to_track_id: int):
         "to_camelot": to_camelot,
         "bridge_candidates": candidates
     }
+
+@app.get("/export-set")
+async def export_set(context: str = "peak", count: int = None):
+    all_tracks = get_all_tracks()
+
+    if context not in ["opening", "peak", "closing"]:
+        return {"error": "context must be 'opening', 'peak', or 'closing'"}
+
+    ordered = build_set(all_tracks, context)
+
+    if count is not None:
+        ordered = ordered[:count]
+
+    if len(ordered) == 0:
+        return {"error": "No tracks available for this set"}
+
+    playlist_name = f"{context.capitalize()} Set"
+    xml_root = generate_rekordbox_xml(ordered, playlist_name)
+
+    output_path = "rekordbox_export.xml"
+    save_xml(xml_root, output_path)
+
+    return FileResponse(
+        output_path,
+        media_type="application/xml",
+        filename="rekordbox_export.xml"
+    )
