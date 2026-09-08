@@ -1,4 +1,5 @@
 import sqlite3
+from camelot import get_camelot
 
 DB_PATH = "tracks.db"
 
@@ -38,4 +39,12 @@ def get_all_tracks():
     cursor.execute("SELECT * FROM tracks")
     rows = cursor.fetchall()
     conn.close()
-    return [dict(row) for row in rows]
+
+    tracks = []
+    for row in rows:
+        track = dict(row)
+        key_parts = track["key"].split(" ", 1)
+        track["camelot"] = get_camelot(key_parts[0], key_parts[1])
+        tracks.append(track)
+
+    return tracks

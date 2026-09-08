@@ -131,6 +131,7 @@ async def get_recommendations(track_id: int):
         "recommendations": scored_matches
     }
 
+
 @app.get("/generate-set")
 async def generate_set(context: str = "peak", count: int = None):
     all_tracks = get_all_tracks()
@@ -147,4 +148,57 @@ async def generate_set(context: str = "peak", count: int = None):
         "context": context,
         "track_count": len(ordered),
         "set": ordered
+    }
+
+
+@app.get("/bridge")
+async def find_bridge(from_track_id: int, to_track_id: int):
+    all_tracks = get_all_tracks()
+
+    from_track = next((t for t in all_tracks if t["id"] == from_track_id), None)
+    to_track = next((t for t in all_tracks if t["id"] == to_track_id), None)
+
+    if from_track is None or to_track is None:
+        return {"error": "One or both tracks not found"}
+
+    from_key_parts = from_track["key"].split(" ", 1)
+    to_key_parts = to_track["key"].split(" ", 1)
+    from_camelot = get_camelot(from_key_parts[0], from_key_parts[1])
+    to_camelot = get_camelot(to_key_parts[0], to_key_parts[1])
+
+    if is_harmonically_compatible(from_camelot, to_camelot):
+        return {
+            "bridge_needed": False,
+            "message": "These tracks are already harmonically compatible"
+        }
+
+    candidates = []
+    for track in all_tracks:
+        if track["id"] in (from_track_id, to_track_id):
+            continue
+
+        key_parts = track["key"].split(" ", 1)
+        track_camelot = get_camelot(key_parts[0], key_parts[1])
+
+        compatible_with_from = is_harmonically_compatible(from_camelot, track_camelot)
+        compatible_with_to = is_harmonically_compatible(track_camelot, to_camelot)
+
+        if compatible_with_from and compatible_with_to:
+            bpm_diff_from = abs(track["bpm"] - from_track["bpm"])
+            bpm_diff_to = abs(track["bpm"] - to_track["bpm"])
+            candidates.append({
+                **track,
+                "camelot": track_camelot,
+                "total_bpm_diff": round(bpm_diff_from + bpm_diff_to, 1)
+            })
+
+    candidates.sort(key=lambda t: t["total_bpm_diff"])
+
+    return {
+        "bridge_needed": True,
+        "from_track": from_track["filename"],
+        "from_camelot": from_camelot,
+        "to_track": to_track["filename"],
+        "to_camelot": to_camelot,
+        "bridge_candidates": candidates
     }

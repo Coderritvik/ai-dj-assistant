@@ -29,10 +29,16 @@ def is_harmonically_compatible(camelot1, camelot2):
     num1, letter1 = int(camelot1[:-1]), camelot1[-1]
     num2, letter2 = int(camelot2[:-1]), camelot2[-1]
 
-    # Same letter, adjacent number (wheel wraps around from 12 to 1)
-    if letter1 == letter2:
-        if abs(num1 - num2) == 1 or abs(num1 - num2) == 11:
-            return True
+    diff = abs(num1 - num2)
+    wraparound_diff = min(diff, 12 - diff)  # handles wheel wraparound cleanly
+
+    # Same letter, adjacent number (classic smooth mix)
+    if letter1 == letter2 and wraparound_diff == 1:
+        return True
+
+    # Same letter, two steps (energy-boost mix)
+    if letter1 == letter2 and wraparound_diff == 2:
+        return True
 
     # Same number, opposite letter (relative major/minor)
     if num1 == num2 and letter1 != letter2:
