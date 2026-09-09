@@ -113,6 +113,10 @@ function App() {
     }
   }
 
+  const handleExportSet = () => {
+    window.location.href = `http://127.0.0.1:8000/export-set?context=${setContext}&count=${setCount}`
+  }
+
   return (
     <div className="app">
       <header className="app-header">
@@ -257,6 +261,10 @@ function App() {
 
           <button className="btn" onClick={handleGenerateSet} disabled={isBuildingSet}>
             {isBuildingSet ? 'Building…' : 'Generate set'}
+          </button>
+
+          <button className="btn" onClick={handleExportSet} disabled={!generatedSet}>
+            Download for Rekordbox
           </button>
         </div>
 
